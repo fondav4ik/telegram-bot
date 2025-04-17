@@ -49,15 +49,24 @@ dp = Dispatcher()
 
 class States(StatesGroup):
     waiting_qouta = State()
+    wait_answer = State()
 
 @dp.message(CommandStart())
 async def cmd_start(message, state):
-    await message.answer('Привет! Я QuoteSaverBot — просто отправь мне любую цитату, и я её запомню.')
+    await message.answer(
+        'Привет! Я QuoteSaverBot 🤖\n\n'
+        '📌 Просто пришли мне любую цитату — я её сохраню.\n\n'
+        '🔎 /qoutes — список цитат\n'
+        '🎲 /random — случайная цитата\n'
+        '🧹 /clear — удалить все\n'
+    )
     await state.set_state(States.waiting_qouta)
 @dp.message(States.waiting_qouta)
 async def qouta_create(message, state):
     qouta = message.text
-    user_id = message.from_user.id
+    user_id = int(message.from_user.id)
+    await state.update_data(user_id=user_id)
+    print(f"Сохраняем от user_id: {user_id}")
     await insert_message(user_id ,qouta)
     await message.answer('✅ Цитата сохранена!')
     await state.clear()
@@ -94,9 +103,35 @@ async def get_all_qoutes(user_id):
     cursor.close()
     conn.close()
     return [row[0] for row in rows]
+@dp.message(Command('clear'))
+async def clears(message: Message, state: FSMContext):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Да", callback_data="clear_yes")],
+            [InlineKeyboardButton(text="❌ Нет", callback_data="clear_no")]
+        ]
+    )
+    await message.answer("Удалить все ваши цитаты?", reply_markup=kb)
+@dp.callback_query(F.data == 'clear_yes')
+async def clear_yess(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    print(f"Удаляем цитаты для user_id: {user_id}")
+    await callback.message.answer('Удаляем..')
+    await del_qouta(user_id)
+    await callback.answer()
+@dp.callback_query(F.data == 'clear_no')
+async def clear_noo(callback):
+    await callback.message.answer('Вовзращаем...')
+    await callback.answer()
+    return
+    
+async def del_qouta(user_id):
+    conn = create_connect()
+    cursor = conn.cursor()
 
-
-
+    cursor.execute('DELETE FROM quotes WHERE user_id = ?', (user_id,))
+    conn.commit()
+    conn.close()
 async def main():
     logging.info("Бот запускается...")
     await dp.start_polling(bot)
