@@ -1,0 +1,38 @@
+import logging
+import asyncio
+import sys
+import datetime
+import sqlite3
+import random
+
+from datetime import datetime
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import Command, CommandStart
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+
+TOKEN = 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+@dp.message(CommandStart())
+async def cmd_start(message):
+    await message.answer('Привет! 👋 Я простой EchoBot. Напиши мне что-нибудь — и я это повторю!')
+@dp.message()
+async def echo(message):
+    await bot.copy_message(chat_id=message.chat.id, from_chat_id=message.chat.id, message_id=message.message_id)
+
+async def main():
+    logging.info("Бот запускается...")
+    await dp.start_polling(bot)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Бота выключили...')
