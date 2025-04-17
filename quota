@@ -1,0 +1,108 @@
+import logging
+import asyncio
+import sys
+import datetime
+import sqlite3
+import random
+
+from datetime import datetime
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import Command, CommandStart
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+
+TOKEN = 
+
+def create_connect():
+    conn = sqlite3.connect('quotes_.db')
+    return conn
+
+def create_table():
+    conn = create_connect()
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS quotes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INT,
+        quota TEXT
+        );''')
+    conn.commit()
+    conn.close()
+
+async def insert_message(user_id,qouta):
+    conn = create_connect()
+    cursor = conn.cursor()
+    cursor.execute(''' INSERT INTO quotes (user_id ,quota) VALUES (?,?);''', (user_id, qouta,))
+    conn.commit()
+    conn.close()
+create_connect()
+create_table()
+
+kb = {
+
+}
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+class States(StatesGroup):
+    waiting_qouta = State()
+
+@dp.message(CommandStart())
+async def cmd_start(message, state):
+    await message.answer('Привет! Я QuoteSaverBot — просто отправь мне любую цитату, и я её запомню.')
+    await state.set_state(States.waiting_qouta)
+@dp.message(States.waiting_qouta)
+async def qouta_create(message, state):
+    qouta = message.text
+    user_id = message.from_user.id
+    await insert_message(user_id ,qouta)
+    await message.answer('✅ Цитата сохранена!')
+    await state.clear()
+@dp.message(Command('qoutes'))
+async def debug_db(message: Message):
+    conn = create_connect()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM quotes WHERE user_id = ?", (message.from_user.id,))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    if not rows:
+        await message.answer("❌ Цитат нет в базе данных.")
+    else:
+        msg = "\n".join([f"🆔 {r[0]} | {r[2]}" for r in rows])
+        await message.answer(f"✅ Найдено:\n{msg}")
+@dp.message(Command('random'))
+async def randoms_qoutes(message):
+    user_id = message.from_user.id
+    rows = await get_all_qoutes(user_id)
+    if not rows:
+        await message.answer("❌ Цитат нет в базе данных.")
+    else:
+        quota = random.choice(rows)
+        await message.answer(f'🎲 Случайная цитата:\n {quota}')
+async def get_all_qoutes(user_id):
+    conn = create_connect()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT quota FROM quotes WHERE user_id = ?', (user_id,))
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+    return [row[0] for row in rows]
+
+
+
+async def main():
+    logging.info("Бот запускается...")
+    await dp.start_polling(bot)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Бота выключили...')
