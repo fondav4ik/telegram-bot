@@ -1,0 +1,70 @@
+import logging
+import asyncio
+import sys
+import datetime
+import sqlite3
+import random
+
+from datetime import datetime
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import Command, CommandStart
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+
+
+TOKEN = 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+admins = '8005742286'
+
+async def send_message():
+    await bot.send_message(admins,'Это сообщение отправляяется после запуска бота')
+async def send_message1():
+    await bot.send_message(admins,'Это сообщение отправляется с интервалом 5 секунд')
+async def send_message2():
+    await bot.send_message(admins,'Это сообщение отправляется в определенное время каждый день')
+
+async def in_start_up():
+    await send_message()
+
+async def interval_message(scheduler):
+    scheduler.add_job(
+        func=send_message1,
+        trigger = IntervalTrigger(seconds=5),
+        name = 'интервальная задача'
+    )
+async def cron_message(scheduler):
+    scheduler.add_job(
+        func=send_message2,
+        trigger = CronTrigger(hour=13, minute=7),
+        name = 'раз в день в определенное время'
+    )
+
+async def setup_scheduler():
+    scheduler = AsyncIOScheduler()
+
+    await interval_message(scheduler)
+    await cron_message(scheduler)
+
+    scheduler.start()
+
+    await in_start_up()
+async def main():
+    logging.info("Бот запускается...")
+    await setup_scheduler()
+    await dp.start_polling(bot)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Бота выключили...')
