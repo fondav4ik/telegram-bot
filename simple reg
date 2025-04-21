@@ -1,0 +1,162 @@
+import logging
+import asyncio
+import sys
+import datetime
+import sqlite3
+import random
+
+from datetime import datetime
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import Command, CommandStart
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+
+TOKEN = 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+
+class Indexes(StatesGroup):
+    index = State()
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+ADMINS_IDS = 8005742286
+
+def init_db():
+    conn = sqlite3.connect("ads.db")
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS ads (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        last_name TEXT,
+        description TEXT,
+        age INT,
+        image TEXT
+    )''')
+    conn.commit()
+    conn.close()
+def save_ad(data):
+    conn = sqlite3.connect('ads.db')
+    c = conn.cursor()
+    c.execute('''INSERT INTO ads (
+        name, last_name, description, age, image
+    ) VALUES (?, ?, ?, ?, ?)''', (
+        data['name'], data['last_name'], data['description'], data['age'], data['image']
+    ))
+
+    conn.commit()
+    conn.close()
+def get_post_by_index(index):
+    conn = sqlite3.connect('ads.db')
+    c = conn.cursor()
+    c.execute("SELECT name, last_name, description, age, image FROM ads LIMIT 1 OFFSET ?", (index,))
+    result = c.fetchone()
+    conn.close()
+    return result
+
+
+class States(StatesGroup):
+    name = State()
+    last_name = State()
+    description = State()
+    age = State()
+    image = State()
+
+
+@dp.message(CommandStart())
+async def process_start(message,state):
+    await message.answer('Привет пройдите коротку регистрацию')
+    await message.answer('Введите свое имя')
+    await state.set_state(States.name)
+@dp.message(States.name)
+async def process_name(message,state):
+    await state.update_data(name=message.text)
+    await message.answer('Введите Фамилию')
+    await state.set_state(States.last_name)
+@dp.message(States.last_name)
+async def process_last_name(message, state):
+    await state.update_data(last_name=message.text)
+    await message.answer('Опишите себя')
+    await state.set_state(States.description)
+@dp.message(States.description)
+async def process_description(message,state):
+    await state.update_data(description=message.text)
+    await message.answer('Введите ваш возраст')
+    await state.set_state(States.age)
+@dp.message(States.age)
+async def process_age(message, state):
+    age = int(message.text)
+    if age > 100:
+        await message.answer('Введи валидный возврост ')
+    elif age <= 0:
+        await message.answer('Введи валидный возврост ')
+    await state.update_data(age=age)
+    await message.answer('Отправьте свою фотографию!')
+    await state.set_state(States.image)
+@dp.message(States.image)
+async def process_image(message, state):
+    photo = message.photo
+    if photo:
+        file_id = photo[-1].file_id
+        await state.update_data(image=file_id)
+        print(file_id)
+        await message.answer('Регистрация завершена')
+        data = await state.get_data()
+        save_ad(data)
+        await message.answer('Ваши данные записаны в базу данных!')
+        await state.clear()
+        return
+    else:
+        await message.reply("Пожалуйста, отправь фото.")
+        return
+    return
+
+@dp.message(Command('admin'))
+async def process_admin(message, state):
+    if message.from_user.id != ADMINS_IDS:
+        await message.answer('Нет доступа!')
+        return
+
+    await state.set_state(Indexes.index)
+    await state.update_data(index=0)
+    await send_post_by_index(message, state, 0)
+async def send_post_by_index(message, state, index):
+    post = get_post_by_index(index)
+    if post:
+        name, last_name, description, age, image = post
+        text = (
+            f"<b>Имя:</b> {name}\n"
+            f"<b>Фамилия:</b> {last_name}\n"
+            f"<b>Описание:</b> {description}\n"
+            f"<b>Возраст:</b> {age}"
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="➡️ Далее", callback_data="next_post")],
+            [InlineKeyboardButton(text='СТОП', callback_data='stop_post')]
+        ])
+        await message.answer_photo(photo=image, caption=text, parse_mode="HTML", reply_markup=kb)
+    else:
+        await message.answer("📦 Больше постов нет.")
+@dp.callback_query(F.data == 'next_post')
+async def process_next_post(callback,state):
+    data = await state.get_data()
+    index = data.get('index', 0) +1
+    await state.update_data(index=index)
+    await send_post_by_index(callback.message, state, index)
+    await callback.answer()
+@dp.callback_query(F.data == 'stop_post')
+async def process_stop_post(callback,state):
+    await callback.message.answer('Выход успешно выполнен, введите старт. /start')
+    return
+async def main():
+    logging.info("Бот запускается...")
+    await dp.start_polling(bot)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+
+
+if __name__ == "__main__":
+    init_db()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Бота выключили...')
