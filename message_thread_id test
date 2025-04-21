@@ -1,0 +1,73 @@
+import logging
+import asyncio
+import sys
+import datetime
+import sqlite3
+import random
+
+from datetime import datetime
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import Command, CommandStart
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+
+def category_kb():
+    buttons = [
+        [InlineKeyboardButton(text="Совместная покупка", callback_data="cat:Совместная покупка")],
+        [InlineKeyboardButton(text="Создание курса", callback_data="cat:Создание курса")],
+        [InlineKeyboardButton(text="Стартап", callback_data="cat:Стартап")],
+        [InlineKeyboardButton(text="Совместные поездки", callback_data="cat:Совместные поездки")],
+        [InlineKeyboardButton(text="Совместная оптовая закупка", callback_data="cat:Совместная оптовая закупка")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+@dp.message(CommandStart())
+async def process_cmd(message):
+    await message.answer('Выберите категорию', reply_markup=category_kb())
+CATEGORY_THREADS = {
+    "Совместная покупка": 3,
+    "Создание курса": 5,
+    "Стартап": 7,
+    "Совместные поездки": 9,
+    "Совместная оптовая закупка": 11,
+}
+GROUP_CHAT_ID = -1002676908130
+@dp.callback_query(F.data.startswith('cat:'))
+async def handle_category(callback):
+    category = callback.data.split(':',1)[1]
+    if not category:
+        await callback.message.answer('Выберите корректную категорию.')
+        return
+    thread_id = CATEGORY_THREADS.get(category)
+    if not thread_id:
+        await callback.message.answer('Ветка была выбрана не правильно.')
+        return
+    await callback.answer()
+    if thread_id:
+        await callback.bot.send_message(
+            chat_id = GROUP_CHAT_ID,
+            message_thread_id = thread_id,
+            text=f'Пользователь выбрал категорию: {category}'
+        )
+        await callback.message.answer(f"Категория «{category}» отправлена в ветку.")
+    else:
+        await callback.message.answer("Ошибка: неизвестная категория.")
+    await callback.answer()
+async def main():
+    logging.info("Бот запускается...")
+    await dp.start_polling(bot)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Бота выключили...')
