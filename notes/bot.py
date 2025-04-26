@@ -15,7 +15,7 @@ from database.database import select_user_id_in_users, insert_user_in_db, insert
 from state import Authorizer, AppenderNotes, Deleter
 from keyboard import kb_list, edit_description_on_note
 
-TOKEN = '7675928357:AAG8coTt5g8g4I-h2StWlNpBocgwHyGyWjY'
+TOKEN =
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 
 bot = Bot(token=TOKEN)
